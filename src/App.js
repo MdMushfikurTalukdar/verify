@@ -14,7 +14,8 @@ const footerInfo = {
     'Head Office, 26 Dilkusha Commercial Area, Dhaka 1000, Bangladesh',
 };
 
-const SESSION_TIMEOUT_MS = 10_000; // hide the data after 10 seconds
+const SESSION_TIMEOUT_MS = 10_000;   // hide the data after 10 seconds
+const VISIT_DELAY_MS = 800;          // delay before showing 503 after clicking "Visit Website"
 
 /* -------------------- Format helpers -------------------- */
 const formatNumber = (n) => {
@@ -37,7 +38,7 @@ const formatEUR = (n) => {
 };
 
 /* ============================================================
-   Security hook — returns a session ID and deters screenshots
+   Security hook — blurs page when tab/app loses focus
    ============================================================ */
 function useSessionGuard(active) {
   const [sessionId] = useState(
@@ -45,7 +46,7 @@ function useSessionGuard(active) {
   );
   const [blurred, setBlurred] = useState(false);
 
-  // 1. Blur page when tab loses focus (deters some capture tools)
+  // 1. Blur page when tab loses focus (deters screenshots / app switcher)
   useEffect(() => {
     if (!active) return;
 
@@ -56,10 +57,17 @@ function useSessionGuard(active) {
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
+    window.addEventListener('pagehide', onBlur);
+    window.addEventListener('pageshow', onFocus);
+    window.addEventListener('touchcancel', onBlur);
+
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('pagehide', onBlur);
+      window.removeEventListener('pageshow', onFocus);
+      window.removeEventListener('touchcancel', onBlur);
     };
   }, [active]);
 
@@ -75,13 +83,10 @@ function useSessionGuard(active) {
     };
     const blockKey = (e) => {
       const k = e.key.toUpperCase();
-      // PrintScreen
       if (k === 'PRINTSCREEN') e.preventDefault();
-      // Ctrl/Cmd + P (print), S (save), C (copy), Shift+S (screenshot on some OS)
       if ((e.ctrlKey || e.metaKey) && ['P', 'S', 'C'].includes(k)) {
         e.preventDefault();
       }
-      // F12, Ctrl+Shift+I / J / C (DevTools)
       if (
         k === 'F12' ||
         ((e.ctrlKey || e.metaKey) && e.shiftKey && ['I', 'J', 'C'].includes(k))
@@ -102,41 +107,7 @@ function useSessionGuard(active) {
     };
   }, [active]);
 
-  return { sessionId, blurred };
-}
-
-/* ============================================================
-   Watermark overlay — identifies any leaked screenshot
-   ============================================================ */
-function Watermark({ sessionId }) {
-  const [ip, setIp] = useState('detecting…');
-
-  useEffect(() => {
-    // Public IP lookup (optional). Remove if you don't want an external call.
-    fetch('https://api.ipify.org?format=json')
-      .then((r) => r.json())
-      .then((d) => setIp(d.ip))
-      .catch(() => setIp('unknown'));
-  }, []);
-
-  const now = new Date().toLocaleString();
-  const text = `${ip} • ${sessionId} • ${now}`;
-
-  return (
-    <div
-      className="pointer-events-none absolute inset-0 z-20 flex flex-wrap content-center justify-center overflow-hidden opacity-[0.08] select-none"
-      aria-hidden="true"
-    >
-      {Array.from({ length: 40 }).map((_, i) => (
-        <span
-          key={i}
-          className="text-[10px] md:text-xs font-bold text-slate-900 whitespace-nowrap rotate-[-25deg] px-6 py-4"
-        >
-          {text}
-        </span>
-      ))}
-    </div>
-  );
+  return { sessionId, blurred, setBlurred };
 }
 
 /* ============================================================
@@ -346,19 +317,22 @@ function StatementLayout({ data }) {
 
 /* -------------------- Main App -------------------- */
 function App() {
-  const [certId, setCertId] = useState('');
+  // const [certId, setCertId] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expired, setExpired] = useState(false);
   const timerRef = useRef(null);
+  const visitTimerRef = useRef(null);
 
   const resultVisible = Boolean(data) && !loading && !error && !expired;
-  const { sessionId, blurred } = useSessionGuard(resultVisible);
+  const { sessionId, blurred, setBlurred } = useSessionGuard(resultVisible);
 
-  // Start a 10-second timer whenever data is displayed
+  // Start a 10-second timer whenever data is displayed.
+  // Pauses while the tab is hidden so switching tabs doesn't burn it.
   useEffect(() => {
     if (!resultVisible) return;
+    if (blurred) return;
 
     timerRef.current = setTimeout(() => {
       setExpired(true);
@@ -366,7 +340,28 @@ function App() {
     }, SESSION_TIMEOUT_MS);
 
     return () => clearTimeout(timerRef.current);
-  }, [resultVisible]);
+  }, [resultVisible, blurred]);
+
+  // Reset the expired state when the user returns to the tab,
+  // so they're not permanently stuck on the 503 overlay.
+  useEffect(() => {
+    if (!expired) return;
+
+    const reset = () => setExpired(false);
+    const onVis = () => {
+      if (!document.hidden) setExpired(false);
+    };
+
+    window.addEventListener('focus', reset);
+    window.addEventListener('pageshow', reset);
+    document.addEventListener('visibilitychange', onVis);
+
+    return () => {
+      window.removeEventListener('focus', reset);
+      window.removeEventListener('pageshow', reset);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [expired]);
 
   // Load ?id= on mount
   useEffect(() => {
@@ -374,9 +369,15 @@ function App() {
     const idFromUrl =
       params.get('id') || params.get('certificate') || params.get('cert');
     if (idFromUrl) {
-      setCertId(idFromUrl);
+      // setCertId(idFromUrl);
       loadCertificate(idFromUrl);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cleanup visit timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(visitTimerRef.current);
   }, []);
 
   const loadCertificate = async (id) => {
@@ -396,13 +397,31 @@ function App() {
     }
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (certId.trim()) loadCertificate(certId.trim());
-  };
+  // const handleSearch = (e) => {
+  //   e.preventDefault();
+  //   if (certId.trim()) loadCertificate(certId.trim());
+  // };
 
-  /* Never render the app body if session expired */
-  if (expired) return <ServerDownOverlay />;
+  // Visit Website: blur immediately, then show 503 after a short delay,
+  // then open the site in a new tab.
+  const handleVisitWebsite = (e) => {
+    if (!resultVisible) return; // let it behave normally if no data is showing
+
+    e.preventDefault();
+    clearTimeout(visitTimerRef.current);
+
+    // 1. Blur the whole page right away
+    setBlurred(true);
+
+    // 2. After a short delay, show the 503 overlay
+    visitTimerRef.current = setTimeout(() => {
+      setExpired(true);
+      setData(null);
+
+      // 3. Open the website in a new tab
+      window.open(WEBSITE_URL, '_blank', 'noopener,noreferrer');
+    }, VISIT_DELAY_MS);
+  };
 
   return (
     <div className="min-h-screen flex flex-col justify-between text-slate-800 antialiased bg-[#f1f6f3] select-none">
@@ -418,6 +437,7 @@ function App() {
             href={WEBSITE_URL}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={handleVisitWebsite}
             className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
           >
             <span>Visit Website</span>
@@ -430,7 +450,7 @@ function App() {
       <main className="flex-grow flex flex-col items-center px-4 py-8 md:py-12">
         <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
           {/* Search */}
-          <form
+          {/* <form
             onSubmit={handleSearch}
             className="w-full max-w-md flex items-center gap-2 mb-6"
           >
@@ -448,7 +468,7 @@ function App() {
               <i className="fa-solid fa-magnifying-glass mr-1"></i>
               Verify
             </button>
-          </form>
+          </form> */}
 
           {/* Loading */}
           {loading && (
@@ -485,16 +505,23 @@ function App() {
               {/* Blur wrapper — hides content when tab loses focus */}
               <div
                 className={`relative w-full transition-all duration-200 ${
-                  blurred ? 'blur-xl pointer-events-none' : ''
+                  blurred ? 'blur-xl pointer-events-none select-none' : ''
                 }`}
               >
-                {/* Watermark overlay */}
-                <Watermark sessionId={sessionId} />
-
                 {data.__type === 'B' ? (
                   <StatementLayout data={data} />
                 ) : (
                   <CertificateLayout data={data} />
+                )}
+
+                {blurred && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 rounded-xl">
+                    <div className="text-white text-center px-4">
+                      <i className="fa-solid fa-eye-slash text-3xl mb-2"></i>
+                      <p className="text-sm font-semibold">Content hidden for security</p>
+                      <p className="text-xs opacity-70 mt-1">Return to this tab to view</p>
+                    </div>
+                  </div>
                 )}
               </div>
             </>
@@ -555,6 +582,19 @@ function App() {
           </div>
         </div>
       </footer>
+
+      {/* ============ Session-expired overlay (non-blocking) ============ */}
+      {expired && (
+        <>
+          <ServerDownOverlay />
+          <button
+            onClick={() => setExpired(false)}
+            className="fixed bottom-6 right-6 z-[60] bg-white text-slate-800 px-4 py-2 rounded-lg text-xs font-semibold shadow-lg border border-slate-300 hover:bg-slate-100"
+          >
+            ← Back to search
+          </button>
+        </>
+      )}
     </div>
   );
 }

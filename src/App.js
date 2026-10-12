@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchCertificateById } from './sheetApi';
 import './App.css';
 
-/* ---------------- Static footer (unchanged) ---------------- */
+/* ---------------- Static footer ---------------- */
 const footerInfo = {
   helpline: '+8809660616253, 16253',
   pabx: '+88 02223381614',
@@ -11,6 +11,9 @@ const footerInfo = {
   address:
     'Head Office, 26 Dilkusha Commercial Area, Dhaka 1000, Bangladesh',
 };
+
+// 👉 Put your real website URL here (or leave empty and it will fall back)
+const WEBSITE_URL = 'https://example.com';
 
 /* ---------------- Helper components ---------------- */
 function InfoField({ label, value, alignRight = false }) {
@@ -123,8 +126,11 @@ function App() {
             </div>
           </div>
 
+          {/* ✅ Fixed: real href instead of "#" */}
           <a
-            href="#"
+            href={WEBSITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             className="bg-emerald-800/60 hover:bg-emerald-800 text-white border border-emerald-500/40 px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition duration-200 shadow-sm flex items-center gap-2"
           >
             <span>Visit Website</span>
@@ -136,7 +142,7 @@ function App() {
       {/* ============ Main ============ */}
       <main className="flex-grow flex flex-col items-center justify-center px-4 py-8 md:py-12">
         <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
-          {/* Search box (fallback if no URL id) */}
+          {/* Search box */}
           <form
             onSubmit={handleSearch}
             className="w-full max-w-md flex items-center gap-2 mb-6"

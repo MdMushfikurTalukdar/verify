@@ -5,7 +5,7 @@ import './App.css';
 
 /* -------------------- Config -------------------- */
 const WEBSITE_URL = 'https://verify-seven-liard.vercel.app';
-const MAX_VISITS = 2;
+const MAX_VISITS = 999;
 
 const footerInfo = {
   helpline: '+8809660616253, 16253',
@@ -441,13 +441,13 @@ function App() {
           </Link>
 
           <div className="flex items-center gap-2">
-            <Link
+            {/* <Link
               to="/qr"
               className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
             >
               <i className="fa-solid fa-qrcode text-[11px]"></i>
               <span>Generate QR</span>
-            </Link>
+            </Link> */}
 
             <a
               href={WEBSITE_URL}

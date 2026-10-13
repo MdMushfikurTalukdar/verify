@@ -4,6 +4,7 @@ import './App.css';
 
 /* -------------------- Config -------------------- */
 const WEBSITE_URL = 'https://verify-seven-liard.vercel.app';
+const MAX_VISITS = 2; // each certificate ID can be viewed only 2 times
 
 const footerInfo = {
   helpline: '+8809660616253, 16253',
@@ -14,8 +15,31 @@ const footerInfo = {
     'Head Office, 26 Dilkusha Commercial Area, Dhaka 1000, Bangladesh',
 };
 
-const SESSION_TIMEOUT_MS = 10_000;   // hide the data after 10 seconds
-const VISIT_DELAY_MS = 800;          // delay before showing 503 after clicking "Visit Website"
+const SESSION_TIMEOUT_MS = 10_000;
+const VISIT_DELAY_MS = 800;
+
+/* -------------------- Visit-counter helpers -------------------- */
+const visitKey = (id) => `certvisits_${String(id).trim()}`;
+
+const getVisitCount = (id) => {
+  try {
+    const raw = localStorage.getItem(visitKey(id));
+    const n = parseInt(raw, 10);
+    return isNaN(n) ? 0 : n;
+  } catch {
+    return 0;
+  }
+};
+
+const incrementVisitCount = (id) => {
+  try {
+    const next = getVisitCount(id) + 1;
+    localStorage.setItem(visitKey(id), String(next));
+    return next;
+  } catch {
+    return 0;
+  }
+};
 
 /* -------------------- Format helpers -------------------- */
 const formatNumber = (n) => {
@@ -46,7 +70,6 @@ function useSessionGuard(active) {
   );
   const [blurred, setBlurred] = useState(false);
 
-  // 1. Blur page when tab loses focus (deters screenshots / app switcher)
   useEffect(() => {
     if (!active) return;
 
@@ -71,7 +94,6 @@ function useSessionGuard(active) {
     };
   }, [active]);
 
-  // 2. Disable right-click, selection, copy, print, and shortcuts
   useEffect(() => {
     if (!active) return;
 
@@ -111,9 +133,9 @@ function useSessionGuard(active) {
 }
 
 /* ============================================================
-   Server-down overlay — shown after session timeout
+   Server-down overlay — shown after timeout / limit / visit click
    ============================================================ */
-function ServerDownOverlay() {
+function ServerDownOverlay({ title, message }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center px-6">
       <div className="max-w-md w-full text-center text-slate-200">
@@ -123,11 +145,11 @@ function ServerDownOverlay() {
           </div>
         </div>
         <h1 className="text-2xl font-bold text-white mb-2">
-          503 — Service Temporarily Unavailable
+          {title || '503 — Service Temporarily Unavailable'}
         </h1>
         <p className="text-sm text-slate-400 mb-6">
-          Our verification servers are currently under maintenance. Please try
-          again later.
+          {message ||
+            'Our verification servers are currently under maintenance. Please try again later.'}
         </p>
         <div className="text-xs text-slate-500 border-t border-slate-700 pt-4">
           <p>Error Code: <span className="font-mono">ERR_UPSTREAM_TIMEOUT</span></p>
@@ -145,7 +167,7 @@ function ServerDownOverlay() {
 }
 
 /* ============================================================
-   Layout A — Certificate / Table (IDs starting with 22…)
+   Layout A — Certificate / Table
    ============================================================ */
 function CertificateLayout({ data }) {
   return (
@@ -233,7 +255,7 @@ function CertificateLayout({ data }) {
 }
 
 /* ============================================================
-   Layout B — Statement Summary (IDs starting with 66…)
+   Layout B — Statement Summary
    ============================================================ */
 function StatementLayout({ data }) {
   return (
@@ -317,24 +339,24 @@ function StatementLayout({ data }) {
 
 /* -------------------- Main App -------------------- */
 function App() {
-  // const [certId, setCertId] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expired, setExpired] = useState(false);
+  const [overlayMsg, setOverlayMsg] = useState(null); // { title, message }
   const timerRef = useRef(null);
   const visitTimerRef = useRef(null);
 
   const resultVisible = Boolean(data) && !loading && !error && !expired;
   const { sessionId, blurred, setBlurred } = useSessionGuard(resultVisible);
 
-  // Start a 10-second timer whenever data is displayed.
-  // Pauses while the tab is hidden so switching tabs doesn't burn it.
+  // 10-second auto-hide (session timeout)
   useEffect(() => {
     if (!resultVisible) return;
     if (blurred) return;
 
     timerRef.current = setTimeout(() => {
+      setOverlayMsg(null); // default maintenance message
       setExpired(true);
       setData(null);
     }, SESSION_TIMEOUT_MS);
@@ -342,26 +364,9 @@ function App() {
     return () => clearTimeout(timerRef.current);
   }, [resultVisible, blurred]);
 
-  // Reset the expired state when the user returns to the tab,
-  // so they're not permanently stuck on the 503 overlay.
   useEffect(() => {
-    if (!expired) return;
-
-    const reset = () => setExpired(false);
-    const onVis = () => {
-      if (!document.hidden) setExpired(false);
-    };
-
-    window.addEventListener('focus', reset);
-    window.addEventListener('pageshow', reset);
-    document.addEventListener('visibilitychange', onVis);
-
-    return () => {
-      window.removeEventListener('focus', reset);
-      window.removeEventListener('pageshow', reset);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [expired]);
+    return () => clearTimeout(visitTimerRef.current);
+  }, []);
 
   // Load ?id= on mount
   useEffect(() => {
@@ -369,26 +374,39 @@ function App() {
     const idFromUrl =
       params.get('id') || params.get('certificate') || params.get('cert');
     if (idFromUrl) {
-      // setCertId(idFromUrl);
       loadCertificate(idFromUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cleanup visit timer on unmount
-  useEffect(() => {
-    return () => clearTimeout(visitTimerRef.current);
-  }, []);
-
   const loadCertificate = async (id) => {
-    setLoading(true);
     setError('');
     setData(null);
     setExpired(false);
+    setOverlayMsg(null);
+
+    // Check visit limit BEFORE fetching
+    const used = getVisitCount(id);
+    if (used >= MAX_VISITS) {
+      setOverlayMsg({
+        title: '503 — Service Temporarily Unavailable',
+        message:
+          'This certificate has reached its maximum verification limit. Please contact support if you need further assistance.',
+      });
+      setExpired(true);
+      return;
+    }
+
+    setLoading(true);
     try {
       const row = await fetchCertificateById(id);
-      if (!row) setError(`No record found for Certificate ID: ${id}`);
-      else setData(row);
+      if (!row) {
+        setError(`No record found for Certificate ID: ${id}`);
+      } else {
+        // Record the visit only on successful lookup
+        incrementVisitCount(id);
+        setData(row);
+      }
     } catch (err) {
       console.error(err);
       setError('Failed to load data. Please try again later.');
@@ -397,29 +415,19 @@ function App() {
     }
   };
 
-  // const handleSearch = (e) => {
-  //   e.preventDefault();
-  //   if (certId.trim()) loadCertificate(certId.trim());
-  // };
-
-  // Visit Website: blur immediately, then show 503 after a short delay,
-  // then open the site in a new tab.
+  // Visit Website → blur, then permanently show 503
   const handleVisitWebsite = (e) => {
-    if (!resultVisible) return; // let it behave normally if no data is showing
-
     e.preventDefault();
     clearTimeout(visitTimerRef.current);
 
-    // 1. Blur the whole page right away
     setBlurred(true);
 
-    // 2. After a short delay, show the 503 overlay
     visitTimerRef.current = setTimeout(() => {
-      setExpired(true);
       setData(null);
-
-      // 3. Open the website in a new tab
-      window.open(WEBSITE_URL, '_blank', 'noopener,noreferrer');
+      setError('');
+      setLoading(false);
+      setOverlayMsg(null); // default maintenance message
+      setExpired(true);
     }, VISIT_DELAY_MS);
   };
 
@@ -449,27 +457,6 @@ function App() {
       {/* ============ Main ============ */}
       <main className="flex-grow flex flex-col items-center px-4 py-8 md:py-12">
         <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
-          {/* Search */}
-          {/* <form
-            onSubmit={handleSearch}
-            className="w-full max-w-md flex items-center gap-2 mb-6"
-          >
-            <input
-              type="text"
-              value={certId}
-              onChange={(e) => setCertId(e.target.value)}
-              placeholder="Enter Certificate ID"
-              className="flex-1 border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-            />
-            <button
-              type="submit"
-              className="bg-[#0d6b41] hover:bg-[#095433] text-white px-5 py-2 rounded-lg text-sm font-medium shadow transition"
-            >
-              <i className="fa-solid fa-magnifying-glass mr-1"></i>
-              Verify
-            </button>
-          </form> */}
-
           {/* Loading */}
           {loading && (
             <div className="text-center text-slate-500 text-sm py-6">
@@ -502,7 +489,6 @@ function App() {
                 </p>
               </div>
 
-              {/* Blur wrapper — hides content when tab loses focus */}
               <div
                 className={`relative w-full transition-all duration-200 ${
                   blurred ? 'blur-xl pointer-events-none select-none' : ''
@@ -583,17 +569,12 @@ function App() {
         </div>
       </footer>
 
-      {/* ============ Session-expired overlay (non-blocking) ============ */}
+      {/* ============ Overlay (maintenance / limit reached / visit click) ============ */}
       {expired && (
-        <>
-          <ServerDownOverlay />
-          <button
-            onClick={() => setExpired(false)}
-            className="fixed bottom-6 right-6 z-[60] bg-white text-slate-800 px-4 py-2 rounded-lg text-xs font-semibold shadow-lg border border-slate-300 hover:bg-slate-100"
-          >
-            ← Back to search
-          </button>
-        </>
+        <ServerDownOverlay
+          title={overlayMsg?.title}
+          message={overlayMsg?.message}
+        />
       )}
     </div>
   );

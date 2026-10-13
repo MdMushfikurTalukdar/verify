@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { fetchCertificateById } from './sheetApi';
 import './App.css';
 
 /* -------------------- Config -------------------- */
 const WEBSITE_URL = 'https://verify-seven-liard.vercel.app';
-const MAX_VISITS = 2; // each certificate ID can be viewed only 2 times
+const MAX_VISITS = 2;
 
 const footerInfo = {
   helpline: '+8809660616253, 16253',
@@ -133,7 +134,7 @@ function useSessionGuard(active) {
 }
 
 /* ============================================================
-   Server-down overlay — shown after timeout / limit / visit click
+   Server-down overlay
    ============================================================ */
 function ServerDownOverlay({ title, message }) {
   return (
@@ -343,20 +344,19 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expired, setExpired] = useState(false);
-  const [overlayMsg, setOverlayMsg] = useState(null); // { title, message }
+  const [overlayMsg, setOverlayMsg] = useState(null);
   const timerRef = useRef(null);
   const visitTimerRef = useRef(null);
 
   const resultVisible = Boolean(data) && !loading && !error && !expired;
   const { sessionId, blurred, setBlurred } = useSessionGuard(resultVisible);
 
-  // 10-second auto-hide (session timeout)
   useEffect(() => {
     if (!resultVisible) return;
     if (blurred) return;
 
     timerRef.current = setTimeout(() => {
-      setOverlayMsg(null); // default maintenance message
+      setOverlayMsg(null);
       setExpired(true);
       setData(null);
     }, SESSION_TIMEOUT_MS);
@@ -368,7 +368,6 @@ function App() {
     return () => clearTimeout(visitTimerRef.current);
   }, []);
 
-  // Load ?id= on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const idFromUrl =
@@ -385,7 +384,6 @@ function App() {
     setExpired(false);
     setOverlayMsg(null);
 
-    // Check visit limit BEFORE fetching
     const used = getVisitCount(id);
     if (used >= MAX_VISITS) {
       setOverlayMsg({
@@ -403,7 +401,6 @@ function App() {
       if (!row) {
         setError(`No record found for Certificate ID: ${id}`);
       } else {
-        // Record the visit only on successful lookup
         incrementVisitCount(id);
         setData(row);
       }
@@ -415,7 +412,6 @@ function App() {
     }
   };
 
-  // Visit Website → blur, then permanently show 503
   const handleVisitWebsite = (e) => {
     e.preventDefault();
     clearTimeout(visitTimerRef.current);
@@ -426,7 +422,7 @@ function App() {
       setData(null);
       setError('');
       setLoading(false);
-      setOverlayMsg(null); // default maintenance message
+      setOverlayMsg(null);
       setExpired(true);
     }, VISIT_DELAY_MS);
   };
@@ -436,28 +432,40 @@ function App() {
       {/* ============ Header ============ */}
       <header className="bg-[#0d6b41] text-white px-4 md:px-8 py-3 shadow-md">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3 text-base md:text-lg font-semibold">
+          <Link
+            to="/"
+            className="flex items-center gap-3 text-base md:text-lg font-semibold"
+          >
             <i className="fa-solid fa-file-circle-check text-xl text-emerald-200"></i>
             <span>Document Verifier</span>
-          </div>
+          </Link>
 
-          <a
-            href={WEBSITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleVisitWebsite}
-            className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
-          >
-            <span>Visit Website</span>
-            <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-          </a>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/qr"
+              className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
+            >
+              <i className="fa-solid fa-qrcode text-[11px]"></i>
+              <span>Generate QR</span>
+            </Link>
+
+            <a
+              href={WEBSITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleVisitWebsite}
+              className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
+            >
+              <span>Visit Website</span>
+              <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+            </a>
+          </div>
         </div>
       </header>
 
       {/* ============ Main ============ */}
       <main className="flex-grow flex flex-col items-center px-4 py-8 md:py-12">
         <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
-          {/* Loading */}
           {loading && (
             <div className="text-center text-slate-500 text-sm py-6">
               <i className="fa-solid fa-spinner fa-spin mr-2"></i>
@@ -465,7 +473,6 @@ function App() {
             </div>
           )}
 
-          {/* Error */}
           {error && !loading && (
             <div className="w-full max-w-lg text-center bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-6">
               <i className="fa-solid fa-circle-exclamation mr-2"></i>
@@ -473,7 +480,6 @@ function App() {
             </div>
           )}
 
-          {/* Result */}
           {resultVisible && (
             <>
               <div className="text-center mb-4">
@@ -513,7 +519,6 @@ function App() {
             </>
           )}
 
-          {/* Empty state */}
           {!data && !loading && !error && !expired && (
             <div className="text-center text-slate-500 text-sm py-10">
               <i className="fa-solid fa-file-circle-question text-4xl mb-3 block text-slate-400"></i>
@@ -569,7 +574,6 @@ function App() {
         </div>
       </footer>
 
-      {/* ============ Overlay (maintenance / limit reached / visit click) ============ */}
       {expired && (
         <ServerDownOverlay
           title={overlayMsg?.title}

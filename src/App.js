@@ -16,7 +16,7 @@ const footerInfo = {
     'Head Office, 26 Dilkusha Commercial Area, Dhaka 1000, Bangladesh',
 };
 
-const SESSION_TIMEOUT_MS = 10_000;
+const SESSION_TIMEOUT_MS = 20_000;
 const VISIT_DELAY_MS = 800;
 
 /* -------------------- Visit-counter helpers -------------------- */
@@ -25,7 +25,7 @@ const visitKey = (id) => `certvisits_${String(id).trim()}`;
 const getVisitCount = (id) => {
   try {
     const raw = localStorage.getItem(visitKey(id));
-    const n = parseInt(raw, 10);
+    const n = parseInt(raw, 20);
     return isNaN(n) ? 0 : n;
   } catch {
     return 0;
@@ -67,7 +67,7 @@ const formatEUR = (n) => {
    ============================================================ */
 function useSessionGuard(active) {
   const [sessionId] = useState(
-    () => 'SES-' + Math.random().toString(36).slice(2, 10).toUpperCase()
+    () => 'SES-' + Math.random().toString(36).slice(2, 20).toUpperCase()
   );
   const [blurred, setBlurred] = useState(false);
 
@@ -491,7 +491,7 @@ function App() {
                   The following details are confirmed and digitally generated.
                 </p>
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Session {sessionId} • auto-hides in 10s
+                  Session {sessionId} • auto-hides in 20s
                 </p>
               </div>
 

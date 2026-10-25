@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { fetchCertificateById } from './sheetApi';
 import './App.css';
 
-/* -------------------- Config -------------------- */
+/* -------------------- Configuration -------------------- */
+
 const WEBSITE_URL = 'https://verify-seven-liard.vercel.app';
+const SESSION_TIMEOUT_MS = 30_000;
 
 const footerInfo = {
   helpline: '+8809660616253, 16253',
@@ -15,73 +17,86 @@ const footerInfo = {
     'Head Office, 26 Dilkusha Commercial Area, Dhaka 1000, Bangladesh',
 };
 
-const SESSION_TIMEOUT_MS = 30_000;
-const VISIT_DELAY_MS = 800;
-
 /* -------------------- Format helpers -------------------- */
-const formatNumber = (n) => {
-  if (n === '' || n === null || n === undefined) return '—';
-  const num = Number(n);
-  if (isNaN(num)) return n;
-  return num.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+const formatNumber = (value) => {
+  if (value === '' || value === null || value === undefined) return '—';
+
+  const number = Number(value);
+  if (Number.isNaN(number)) return value;
+
+  return number.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 };
 
-const formatBDT = (n) => {
-  if (n === '' || n === null || n === undefined) return '—';
-  const num = Number(n);
-  if (isNaN(num)) return n;
-  return '৳' + num.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+const formatBDT = (value) => {
+  if (value === '' || value === null || value === undefined) return '—';
+
+  const number = Number(value);
+  if (Number.isNaN(number)) return value;
+
+  return (
+    '৳' +
+    number.toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
 };
 
-const formatEUR = (n) => {
-  if (n === '' || n === null || n === undefined) return '—';
-  const num = Number(n);
-  if (isNaN(num)) return n;
-  return num.toLocaleString('en-US', { minimumFractionDigits: 2 });
+const formatEUR = (value) => {
+  if (value === '' || value === null || value === undefined) return '—';
+
+  const number = Number(value);
+  if (Number.isNaN(number)) return value;
+
+  return number.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 };
 
-/* ============================================================
-   Live generated date/time — Bangladesh time
-   Updates every second.
-   ============================================================ */
+/* -------------------- Live date and time -------------------- */
+
 function LiveGeneratedDate() {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
+    const interval = setInterval(() => {
       setNow(new Date());
     }, 1000);
 
-    return () => clearInterval(intervalId);
+    return () => clearInterval(interval);
   }, []);
 
-  return (
-    <>
-      {now.toLocaleString('en-GB', {
-        timeZone: 'Asia/Dhaka',
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      })}{' '}
-      (Bangladesh time)
-    </>
-  );
+  return now.toLocaleString('en-GB', {
+    timeZone: 'Asia/Dhaka',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
 }
 
-/* ============================================================
-   Security hook
-   ============================================================ */
+/* -------------------- Security hook -------------------- */
+
 function useSessionGuard(active) {
+  const [sessionId] = useState(
+    () => 'SES-' + Math.random().toString(36).slice(2, 20).toUpperCase()
+  );
 
   const [blurred, setBlurred] = useState(false);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      setBlurred(false);
+      return;
+    }
 
     const onVisibility = () => setBlurred(document.hidden);
     const onBlur = () => setBlurred(true);
@@ -92,7 +107,6 @@ function useSessionGuard(active) {
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', onBlur);
     window.addEventListener('pageshow', onFocus);
-    window.addEventListener('touchcancel', onBlur);
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
@@ -100,64 +114,14 @@ function useSessionGuard(active) {
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('pagehide', onBlur);
       window.removeEventListener('pageshow', onFocus);
-      window.removeEventListener('touchcancel', onBlur);
     };
   }, [active]);
 
-  useEffect(() => {
-    if (!active) return;
-
-    const blockContext = (e) => e.preventDefault();
-    const blockSelect = (e) => e.preventDefault();
-
-    const blockCopy = (e) => {
-      e.preventDefault();
-
-      if (e.clipboardData) {
-        e.clipboardData.setData('text/plain', '');
-      }
-    };
-
-    const blockKey = (e) => {
-      const k = e.key.toUpperCase();
-
-      if (k === 'PRINTSCREEN') {
-        e.preventDefault();
-      }
-
-      if ((e.ctrlKey || e.metaKey) && ['P', 'S', 'C'].includes(k)) {
-        e.preventDefault();
-      }
-
-      if (
-        k === 'F12' ||
-        ((e.ctrlKey || e.metaKey) &&
-          e.shiftKey &&
-          ['I', 'J', 'C'].includes(k))
-      ) {
-        e.preventDefault();
-      }
-    };
-
-    document.addEventListener('contextmenu', blockContext);
-    document.addEventListener('selectstart', blockSelect);
-    document.addEventListener('copy', blockCopy);
-    document.addEventListener('keydown', blockKey);
-
-    return () => {
-      document.removeEventListener('contextmenu', blockContext);
-      document.removeEventListener('selectstart', blockSelect);
-      document.removeEventListener('copy', blockCopy);
-      document.removeEventListener('keydown', blockKey);
-    };
-  }, [active]);
-
-  return {blurred, setBlurred };
+  return { sessionId, blurred, setBlurred };
 }
 
-/* ============================================================
-   Server-down overlay
-   ============================================================ */
+/* -------------------- Error overlay -------------------- */
+
 function ServerDownOverlay({ title, message }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center px-6">
@@ -174,7 +138,7 @@ function ServerDownOverlay({ title, message }) {
 
         <p className="text-sm text-slate-400 mb-6">
           {message ||
-            'Our verification servers are currently under maintenance. Please try again later.'}
+            'Our verification servers are currently unavailable. Please try again later.'}
         </p>
 
         <div className="text-xs text-slate-500 border-t border-slate-700 pt-4">
@@ -182,16 +146,14 @@ function ServerDownOverlay({ title, message }) {
             Error Code:{' '}
             <span className="font-mono">ERR_UPSTREAM_TIMEOUT</span>
           </p>
-
           <p className="mt-1">
             Reference ID:{' '}
             <span className="font-mono">
               {Math.random().toString(36).slice(2, 12).toUpperCase()}
             </span>
           </p>
-
           <p className="mt-3">
-            Status: <span className="text-red-400">● Offline</span>
+            Status: <span className="text-red-400">● Unavailable</span>
           </p>
         </div>
       </div>
@@ -202,6 +164,7 @@ function ServerDownOverlay({ title, message }) {
 /* ============================================================
    Layout A — Certificate / Table (Flag = 1)
    ============================================================ */
+
 function CertificateLayout({ data }) {
   return (
     <div className="bg-white w-full rounded-xl shadow-lg border border-slate-200/70 p-6 md:p-10 mb-8">
@@ -215,7 +178,6 @@ function CertificateLayout({ data }) {
             <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
               Account Holder Name:
             </label>
-
             <div className="font-bold text-slate-900 text-sm md:text-base">
               {data['Account Holder Name'] || '—'}
             </div>
@@ -225,9 +187,8 @@ function CertificateLayout({ data }) {
             <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
               Certificate ID:
             </label>
-
             <div className="font-bold text-slate-900 text-sm md:text-base">
-              {data['Certificate ID'] || '—'}
+              {data['id'] ?? '—'}
             </div>
           </div>
         </div>
@@ -236,7 +197,6 @@ function CertificateLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Date:
           </label>
-
           <div className="font-bold text-slate-900 text-sm md:text-base">
             {data['Date'] || '—'}
           </div>
@@ -273,23 +233,18 @@ function CertificateLayout({ data }) {
               <td className="py-3 px-3 text-center border border-slate-200 text-slate-600">
                 1
               </td>
-
               <td className="py-3 px-3 border border-slate-200 text-slate-800 whitespace-nowrap">
                 {data['Account Number'] || '—'}
               </td>
-
               <td className="py-3 px-3 border border-slate-200 text-slate-700 whitespace-nowrap">
                 {data['Open Date'] || '—'}
               </td>
-
               <td className="py-3 px-3 border border-slate-200 text-slate-700 whitespace-nowrap">
                 {data['Account Type'] || '—'}
               </td>
-
               <td className="py-3 px-3 border border-slate-200 text-right font-bold text-slate-800 whitespace-nowrap">
                 {formatBDT(data['Balance BDT'])}
               </td>
-
               <td className="py-3 px-3 border border-slate-200 text-right font-bold text-slate-800 whitespace-nowrap">
                 {formatEUR(data['Balance EUR'])}
               </td>
@@ -302,11 +257,9 @@ function CertificateLayout({ data }) {
               >
                 Total
               </td>
-
               <td className="py-3 px-3 text-right font-bold text-[#0d6b41] border border-slate-200 whitespace-nowrap">
                 {formatBDT(data['Balance BDT'])}
               </td>
-
               <td className="py-3 px-3 text-right font-bold text-[#0d6b41] border border-slate-200 whitespace-nowrap">
                 {formatEUR(data['Balance EUR'])}
               </td>
@@ -321,6 +274,7 @@ function CertificateLayout({ data }) {
 /* ============================================================
    Layout B — Statement Summary (Flag = 2)
    ============================================================ */
+
 function StatementLayout({ data }) {
   return (
     <div className="bg-white w-full rounded-xl shadow-lg border border-slate-200/70 p-6 md:p-10 mb-8">
@@ -333,7 +287,6 @@ function StatementLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Account No:
           </label>
-
           <div className="font-bold text-slate-900 text-sm md:text-base">
             {data['Account No'] || '—'}
           </div>
@@ -343,7 +296,6 @@ function StatementLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Account Type:
           </label>
-
           <div className="font-bold text-slate-900 text-sm md:text-base uppercase">
             {data['Account Type'] || '—'}
           </div>
@@ -353,7 +305,6 @@ function StatementLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Account Name:
           </label>
-
           <div className="font-bold text-slate-900 text-sm md:text-base uppercase">
             {data['Account Name'] || '—'}
           </div>
@@ -363,7 +314,6 @@ function StatementLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Opening Balance:
           </label>
-
           <div className="font-bold text-[#0d6b41] text-sm md:text-base">
             {'৳' + formatNumber(data['Opening Balance'])}
           </div>
@@ -373,7 +323,6 @@ function StatementLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Closing Balance:
           </label>
-
           <div className="font-bold text-[#0d6b41] text-sm md:text-base">
             {'৳' + formatNumber(data['Closing Balance'])}
           </div>
@@ -383,7 +332,6 @@ function StatementLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Statement Period:
           </label>
-
           <div className="font-bold text-slate-900 text-sm md:text-base">
             {data['Statement Period'] || '—'}
           </div>
@@ -393,9 +341,8 @@ function StatementLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Certificate ID:
           </label>
-
           <div className="font-bold text-slate-900 text-sm md:text-base">
-            {data['Certificate ID'] || '—'}
+            {data['id'] ?? '—'}
           </div>
         </div>
       </div>
@@ -406,7 +353,6 @@ function StatementLayout({ data }) {
         <span className="font-bold text-slate-500 uppercase tracking-wide text-[11px]">
           Statement Generated Date:
         </span>{' '}
-
         <span className="font-semibold text-slate-900">
           <LiveGeneratedDate />
         </span>
@@ -416,8 +362,9 @@ function StatementLayout({ data }) {
 }
 
 /* ============================================================
-   Layout C — Flag 3: PDF-style statement layout
+   Layout C — PDF-style statement (Flag = 3)
    ============================================================ */
+
 function Flag3Layout({ data }) {
   const primary = {
     accountNo: data['Account No'] || '—',
@@ -426,7 +373,8 @@ function Flag3Layout({ data }) {
     openingBalance: data['Opening Balance'] ?? '',
     closingBalance: data['Closing Balance'] ?? '',
     statementPeriod: data['Statement Period'] || '—',
-    certificateId: data['Certificate ID'] || '—',
+    certificateId: data['id'] ?? '—',
+    generatedDate: null,
   };
 
   const secondary = {
@@ -435,8 +383,8 @@ function Flag3Layout({ data }) {
     accountName: data['Account Name 2'] || primary.accountName,
     openingBalance: data['Opening Balance 2'] ?? primary.openingBalance,
     closingBalance: data['Closing Balance 2'] ?? primary.closingBalance,
-    statementPeriod: data['Statement Period 2'] || '—',
-    certificateId: data['Certificate ID 2'] || primary.certificateId,
+    statementPeriod: data['Statement Period 2'] || primary.statementPeriod,
+    certificateId: data['id'] ?? primary.certificateId,
   };
 
   const money = (value) => {
@@ -475,7 +423,6 @@ function Flag3Layout({ data }) {
         return (
           <div className="statement-field" key={key}>
             <div className="statement-label">{label}</div>
-
             <div
               className={`statement-value ${
                 isBalance ? 'statement-balance' : ''
@@ -491,29 +438,7 @@ function Flag3Layout({ data }) {
 
   return (
     <div className="pdf-document">
-      
-
-      <section className="statement-hero">
-        <div className="valid-statement">
-          <span aria-hidden="true">♢</span> Valid Statement
-        </div>
-
-        <p className="statement-description">
-          The following details are confirmed and digitally generated by
-          Pubali Bank PLC.
-        </p>
-
-        <div className="statement-card">
-          <h2 className="statement-title">Statement Summary</h2>
-
-          <SummaryFields record={primary} />
-
-          <div className="statement-generated">
-            <strong>STATEMENT GENERATED DATE:</strong>{' '}
-            <LiveGeneratedDate />
-          </div>
-        </div>
-      </section>
+      {/* Original statement hero section is intentionally hidden. */}
 
       <section className="secondary-summary">
         <h2 className="secondary-title">STATEMENT SUMMARY</h2>
@@ -529,69 +454,60 @@ function Flag3Layout({ data }) {
   );
 }
 
-/* -------------------- Main App -------------------- */
+/* ============================================================
+   Main App
+   ============================================================ */
+
 function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expired, setExpired] = useState(false);
-  const [overlayMsg, setOverlayMsg] = useState(null);
+  const [blurred, setBlurred] = useState(false);
 
   const timerRef = useRef(null);
-  const visitTimerRef = useRef(null);
 
-  const resultVisible =
-    Boolean(data) && !loading && !error && !expired;
+  const resultVisible = Boolean(data) && !loading && !error && !expired;
 
-  const { blurred, setBlurred } =
-    useSessionGuard(resultVisible);
+  const {
+    sessionId,
+    blurred: sessionBlurred,
+    setBlurred: setSessionBlurred,
+  } = useSessionGuard(resultVisible);
 
+  const contentBlurred = blurred || sessionBlurred;
   const isPdfMode = data?.__type === '3';
 
-  /* -------------------- Auto-hide after 30 seconds -------------------- */
   useEffect(() => {
-    if (!resultVisible) return;
-    if (blurred) return;
+    if (!resultVisible || contentBlurred) return;
 
     timerRef.current = setTimeout(() => {
-      setOverlayMsg(null);
       setExpired(true);
       setData(null);
     }, SESSION_TIMEOUT_MS);
 
     return () => clearTimeout(timerRef.current);
-  }, [resultVisible, blurred]);
+  }, [resultVisible, contentBlurred]);
 
-  useEffect(() => {
-    return () => {
-      clearTimeout(visitTimerRef.current);
-      clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  /* -------------------- Read Certificate ID from QR URL -------------------- */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-
     const idFromUrl =
-      params.get('id') ||
-      params.get('certificate') ||
-      params.get('cert');
+      params.get('id') || params.get('certificate') || params.get('cert');
 
     if (idFromUrl) {
       loadCertificate(idFromUrl);
     }
 
+    return () => clearTimeout(timerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* -------------------- Load certificate without scan limit -------------------- */
   const loadCertificate = async (id) => {
     setError('');
     setData(null);
     setExpired(false);
-    setOverlayMsg(null);
-
+    setBlurred(false);
+    setSessionBlurred(false);
     setLoading(true);
 
     try {
@@ -603,26 +519,20 @@ function App() {
         setData(row);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Certificate lookup failed:', err);
       setError('Failed to load data. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVisitWebsite = (e) => {
-    e.preventDefault();
-
-    clearTimeout(visitTimerRef.current);
+  const handleVisitWebsite = () => {
     setBlurred(true);
+    setSessionBlurred(true);
 
-    visitTimerRef.current = setTimeout(() => {
-      setData(null);
-      setError('');
-      setLoading(false);
-      setOverlayMsg(null);
-      setExpired(true);
-    }, VISIT_DELAY_MS);
+    setTimeout(() => {
+      window.open(WEBSITE_URL, '_blank', 'noopener,noreferrer');
+    }, 100);
   };
 
   const badgeLabel =
@@ -647,18 +557,14 @@ function App() {
               <span>Document Verifier</span>
             </Link>
 
-            <div className="flex items-center gap-2">
-              <a
-                href={WEBSITE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={handleVisitWebsite}
-                className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
-              >
-                <span>Visit Website</span>
-                <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-              </a>
-            </div>
+            <button
+              type="button"
+              onClick={handleVisitWebsite}
+              className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
+            >
+              <span>Visit Website</span>
+              <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+            </button>
           </div>
         </header>
       )}
@@ -689,22 +595,20 @@ function App() {
             {resultVisible && (
               <div
                 className={`relative w-full transition-all duration-200 ${
-                  blurred
+                  contentBlurred
                     ? 'blur-xl pointer-events-none select-none'
                     : ''
                 }`}
               >
                 <Flag3Layout data={data} />
 
-                {blurred && (
+                {contentBlurred && (
                   <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 rounded-lg">
                     <div className="text-white text-center px-4">
                       <i className="fa-solid fa-eye-slash text-3xl mb-2"></i>
-
                       <p className="text-sm font-semibold">
                         Content hidden for security
                       </p>
-
                       <p className="text-xs opacity-70 mt-1">
                         Return to this tab to view
                       </p>
@@ -717,7 +621,7 @@ function App() {
             {!data && !loading && !error && !expired && (
               <div className="text-center text-slate-500 text-sm py-10">
                 <i className="fa-solid fa-file-circle-question text-4xl mb-3 block text-slate-400"></i>
-                Scan a QR code or enter a Certificate ID above to verify.
+                Scan a QR code or open a verification link to verify.
               </div>
             )}
           </div>
@@ -750,31 +654,33 @@ function App() {
                     generated by Pubali Bank PLC.
                   </p>
 
-                  
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Session {sessionId} • auto-hides in 30s
+                  </p>
                 </div>
 
                 <div
                   className={`relative w-full transition-all duration-200 ${
-                    blurred
+                    contentBlurred
                       ? 'blur-xl pointer-events-none select-none'
                       : ''
                   }`}
                 >
-                  {data.__type === '2' ? (
+                  {data.__type === '3' ? (
+                    <Flag3Layout data={data} />
+                  ) : data.__type === '2' ? (
                     <StatementLayout data={data} />
                   ) : (
                     <CertificateLayout data={data} />
                   )}
 
-                  {blurred && (
+                  {contentBlurred && (
                     <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 rounded-xl">
                       <div className="text-white text-center px-4">
                         <i className="fa-solid fa-eye-slash text-3xl mb-2"></i>
-
                         <p className="text-sm font-semibold">
                           Content hidden for security
                         </p>
-
                         <p className="text-xs opacity-70 mt-1">
                           Return to this tab to view
                         </p>
@@ -788,7 +694,7 @@ function App() {
             {!data && !loading && !error && !expired && (
               <div className="text-center text-slate-500 text-sm py-10">
                 <i className="fa-solid fa-file-circle-question text-4xl mb-3 block text-slate-400"></i>
-                Scan a QR code or enter a Certificate ID above to verify.
+                Scan a QR code or open a verification link to verify.
               </div>
             )}
           </div>
@@ -848,8 +754,8 @@ function App() {
 
       {expired && (
         <ServerDownOverlay
-          title={overlayMsg?.title}
-          message={overlayMsg?.message}
+          title="Verification Session Expired"
+          message="Your verification session has expired. Please open the verification link again."
         />
       )}
     </div>

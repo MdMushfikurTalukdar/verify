@@ -21,3 +21,208 @@
     color: #000;
   }
 }
+
+/* ============================================================
+   Flag 3 - Exact PDF Match Styles
+   ============================================================ */
+
+/* Heading — Title Case for block 1, ALL CAPS for block 2 */
+.pdf-heading {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: #000000;
+  margin-bottom: 24px;
+  text-transform: uppercase;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Keep 1st block Title Case */
+.pdf-heading.title-case {
+  text-transform: none;
+}
+
+/* Mobile Responsiveness for Flag 3 */
+@media (max-width: 640px) {
+  .pdf-heading {
+    font-size: 18px;
+  }
+}
+
+
+
+/* Flag 3: PDF-style layout */
+.pdf-document {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 0 35px;
+  color: #111;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #fff;
+}
+
+.demo-copy {
+  width: 235px;
+  min-height: 43px;
+  margin: 0 auto;
+  border: 1px solid #777;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.statement-hero {
+  background: #edf5f0;
+  padding: 40px 38px 32px;
+  text-align: center;
+}
+
+.valid-statement {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 18px;
+  border: 1px solid #b8ead6;
+  border-radius: 999px;
+  background: #d9f2e9;
+  color: #14794e;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.statement-description {
+  margin: 10px 0 16px;
+  color: #7b8584;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.statement-card {
+  padding: 23px 22px 20px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 9%);
+  text-align: left;
+}
+
+.statement-title {
+  margin: 0 0 25px;
+  color: #252525;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.statement-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 28px;
+  row-gap: 19px;
+}
+
+.statement-field {
+  min-width: 0;
+}
+
+.statement-label {
+  margin-bottom: 5px;
+  color: #858b8c;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.statement-value {
+  overflow-wrap: anywhere;
+  color: #171717;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.statement-balance {
+  color: #008b50;
+}
+
+.statement-generated {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  color: #737b80;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.statement-generated strong,
+.secondary-generated strong {
+  font-weight: 700;
+}
+
+.secondary-summary {
+  padding: 29px 10px 0;
+}
+
+.secondary-title {
+  margin: 0 0 42px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.secondary-fields {
+  column-gap: 30px;
+  row-gap: 30px;
+}
+
+.secondary-fields .statement-label {
+  font-size: 13px;
+}
+
+.secondary-fields .statement-value {
+  font-size: 13px;
+}
+
+.secondary-generated {
+  margin-top: 185px;
+  padding: 18px 5px 20px;
+  border-top: 1px solid #d9d9d9;
+  text-align: center;
+  color: #777;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .statement-hero {
+    padding: 25px 14px;
+  }
+
+  .statement-card {
+    padding: 22px 14px;
+  }
+
+  .statement-fields {
+    column-gap: 15px;
+    row-gap: 22px;
+  }
+
+  .statement-label {
+    font-size: 10px;
+  }
+
+  .statement-value {
+    font-size: 12px;
+  }
+
+  .secondary-summary {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+
+  .secondary-generated {
+    margin-top: 100px;
+  }
+}

@@ -5,7 +5,6 @@ import './App.css';
 
 /* -------------------- Config -------------------- */
 const WEBSITE_URL = 'https://verify-seven-liard.vercel.app';
-const MAX_VISITS = 999;
 
 const footerInfo = {
   helpline: '+8809660616253, 16253',
@@ -16,31 +15,8 @@ const footerInfo = {
     'Head Office, 26 Dilkusha Commercial Area, Dhaka 1000, Bangladesh',
 };
 
-const SESSION_TIMEOUT_MS = 20_000;
+const SESSION_TIMEOUT_MS = 30_000;
 const VISIT_DELAY_MS = 800;
-
-/* -------------------- Visit-counter helpers -------------------- */
-const visitKey = (id) => `certvisits_${String(id).trim()}`;
-
-const getVisitCount = (id) => {
-  try {
-    const raw = localStorage.getItem(visitKey(id));
-    const n = parseInt(raw, 20);
-    return isNaN(n) ? 0 : n;
-  } catch {
-    return 0;
-  }
-};
-
-const incrementVisitCount = (id) => {
-  try {
-    const next = getVisitCount(id) + 1;
-    localStorage.setItem(visitKey(id), String(next));
-    return next;
-  } catch {
-    return 0;
-  }
-};
 
 /* -------------------- Format helpers -------------------- */
 const formatNumber = (n) => {
@@ -49,12 +25,14 @@ const formatNumber = (n) => {
   if (isNaN(num)) return n;
   return num.toLocaleString('en-IN', { minimumFractionDigits: 2 });
 };
+
 const formatBDT = (n) => {
   if (n === '' || n === null || n === undefined) return '—';
   const num = Number(n);
   if (isNaN(num)) return n;
   return '৳' + num.toLocaleString('en-IN', { minimumFractionDigits: 2 });
 };
+
 const formatEUR = (n) => {
   if (n === '' || n === null || n === undefined) return '—';
   const num = Number(n);
@@ -63,12 +41,43 @@ const formatEUR = (n) => {
 };
 
 /* ============================================================
-   Security hook — blurs page when tab/app loses focus
+   Live generated date/time — Bangladesh time
+   Updates every second.
+   ============================================================ */
+function LiveGeneratedDate() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  return (
+    <>
+      {now.toLocaleString('en-GB', {
+        timeZone: 'Asia/Dhaka',
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      })}{' '}
+      (Bangladesh time)
+    </>
+  );
+}
+
+/* ============================================================
+   Security hook
    ============================================================ */
 function useSessionGuard(active) {
-  const [sessionId] = useState(
-    () => 'SES-' + Math.random().toString(36).slice(2, 20).toUpperCase()
-  );
+
   const [blurred, setBlurred] = useState(false);
 
   useEffect(() => {
@@ -100,19 +109,31 @@ function useSessionGuard(active) {
 
     const blockContext = (e) => e.preventDefault();
     const blockSelect = (e) => e.preventDefault();
+
     const blockCopy = (e) => {
       e.preventDefault();
-      e.clipboardData.setData('text/plain', '');
+
+      if (e.clipboardData) {
+        e.clipboardData.setData('text/plain', '');
+      }
     };
+
     const blockKey = (e) => {
       const k = e.key.toUpperCase();
-      if (k === 'PRINTSCREEN') e.preventDefault();
+
+      if (k === 'PRINTSCREEN') {
+        e.preventDefault();
+      }
+
       if ((e.ctrlKey || e.metaKey) && ['P', 'S', 'C'].includes(k)) {
         e.preventDefault();
       }
+
       if (
         k === 'F12' ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && ['I', 'J', 'C'].includes(k))
+        ((e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          ['I', 'J', 'C'].includes(k))
       ) {
         e.preventDefault();
       }
@@ -122,6 +143,7 @@ function useSessionGuard(active) {
     document.addEventListener('selectstart', blockSelect);
     document.addEventListener('copy', blockCopy);
     document.addEventListener('keydown', blockKey);
+
     return () => {
       document.removeEventListener('contextmenu', blockContext);
       document.removeEventListener('selectstart', blockSelect);
@@ -130,7 +152,7 @@ function useSessionGuard(active) {
     };
   }, [active]);
 
-  return { sessionId, blurred, setBlurred };
+  return {blurred, setBlurred };
 }
 
 /* ============================================================
@@ -145,22 +167,32 @@ function ServerDownOverlay({ title, message }) {
             <i className="fa-solid fa-triangle-exclamation text-4xl text-red-400"></i>
           </div>
         </div>
+
         <h1 className="text-2xl font-bold text-white mb-2">
           {title || '503 — Service Temporarily Unavailable'}
         </h1>
+
         <p className="text-sm text-slate-400 mb-6">
           {message ||
             'Our verification servers are currently under maintenance. Please try again later.'}
         </p>
+
         <div className="text-xs text-slate-500 border-t border-slate-700 pt-4">
-          <p>Error Code: <span className="font-mono">ERR_UPSTREAM_TIMEOUT</span></p>
+          <p>
+            Error Code:{' '}
+            <span className="font-mono">ERR_UPSTREAM_TIMEOUT</span>
+          </p>
+
           <p className="mt-1">
             Reference ID:{' '}
             <span className="font-mono">
               {Math.random().toString(36).slice(2, 12).toUpperCase()}
             </span>
           </p>
-          <p className="mt-3">Status: <span className="text-red-400">● Offline</span></p>
+
+          <p className="mt-3">
+            Status: <span className="text-red-400">● Offline</span>
+          </p>
         </div>
       </div>
     </div>
@@ -168,7 +200,7 @@ function ServerDownOverlay({ title, message }) {
 }
 
 /* ============================================================
-   Layout A — Certificate / Table
+   Layout A — Certificate / Table (Flag = 1)
    ============================================================ */
 function CertificateLayout({ data }) {
   return (
@@ -183,23 +215,28 @@ function CertificateLayout({ data }) {
             <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
               Account Holder Name:
             </label>
+
             <div className="font-bold text-slate-900 text-sm md:text-base">
               {data['Account Holder Name'] || '—'}
             </div>
           </div>
+
           <div>
             <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
               Certificate ID:
             </label>
+
             <div className="font-bold text-slate-900 text-sm md:text-base">
               {data['Certificate ID'] || '—'}
             </div>
           </div>
         </div>
+
         <div className="md:text-right">
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Date:
           </label>
+
           <div className="font-bold text-slate-900 text-sm md:text-base">
             {data['Date'] || '—'}
           </div>
@@ -210,40 +247,66 @@ function CertificateLayout({ data }) {
         <table className="w-full text-[11px] md:text-xs text-left text-slate-700 border-collapse">
           <thead className="bg-slate-50 border-b border-slate-200 text-[10px] md:text-[11px] text-slate-700 uppercase font-bold tracking-wide">
             <tr>
-              <th className="py-3 px-3 border border-slate-200 text-center">SL#</th>
-              <th className="py-3 px-3 border border-slate-200 text-center">A/C NUMBER</th>
-              <th className="py-3 px-3 border border-slate-200 text-center">OPEN DATE</th>
-              <th className="py-3 px-3 border border-slate-200 text-center">A/C TYPE</th>
-              <th className="py-3 px-3 border border-slate-200 text-center">BALANCE (BDT)</th>
-              <th className="py-3 px-3 border border-slate-200 text-center">BALANCE (EUR)</th>
+              <th className="py-3 px-3 border border-slate-200 text-center">
+                SL#
+              </th>
+              <th className="py-3 px-3 border border-slate-200 text-center">
+                A/C NUMBER
+              </th>
+              <th className="py-3 px-3 border border-slate-200 text-center">
+                OPEN DATE
+              </th>
+              <th className="py-3 px-3 border border-slate-200 text-center">
+                A/C TYPE
+              </th>
+              <th className="py-3 px-3 border border-slate-200 text-center">
+                BALANCE (BDT)
+              </th>
+              <th className="py-3 px-3 border border-slate-200 text-center">
+                BALANCE (EUR)
+              </th>
             </tr>
           </thead>
+
           <tbody className="bg-white">
             <tr>
-              <td className="py-3 px-3 text-center border border-slate-200 text-slate-600">1</td>
+              <td className="py-3 px-3 text-center border border-slate-200 text-slate-600">
+                1
+              </td>
+
               <td className="py-3 px-3 border border-slate-200 text-slate-800 whitespace-nowrap">
                 {data['Account Number'] || '—'}
               </td>
+
               <td className="py-3 px-3 border border-slate-200 text-slate-700 whitespace-nowrap">
                 {data['Open Date'] || '—'}
               </td>
+
               <td className="py-3 px-3 border border-slate-200 text-slate-700 whitespace-nowrap">
                 {data['Account Type'] || '—'}
               </td>
+
               <td className="py-3 px-3 border border-slate-200 text-right font-bold text-slate-800 whitespace-nowrap">
                 {formatBDT(data['Balance BDT'])}
               </td>
+
               <td className="py-3 px-3 border border-slate-200 text-right font-bold text-slate-800 whitespace-nowrap">
                 {formatEUR(data['Balance EUR'])}
               </td>
             </tr>
+
             <tr className="bg-slate-50/60">
-              <td colSpan="4" className="py-3 px-3 text-right font-bold text-slate-800 border border-slate-200">
+              <td
+                colSpan="4"
+                className="py-3 px-3 text-right font-bold text-slate-800 border border-slate-200"
+              >
                 Total
               </td>
+
               <td className="py-3 px-3 text-right font-bold text-[#0d6b41] border border-slate-200 whitespace-nowrap">
                 {formatBDT(data['Balance BDT'])}
               </td>
+
               <td className="py-3 px-3 text-right font-bold text-[#0d6b41] border border-slate-200 whitespace-nowrap">
                 {formatEUR(data['Balance EUR'])}
               </td>
@@ -256,7 +319,7 @@ function CertificateLayout({ data }) {
 }
 
 /* ============================================================
-   Layout B — Statement Summary
+   Layout B — Statement Summary (Flag = 2)
    ============================================================ */
 function StatementLayout({ data }) {
   return (
@@ -270,54 +333,67 @@ function StatementLayout({ data }) {
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Account No:
           </label>
+
           <div className="font-bold text-slate-900 text-sm md:text-base">
             {data['Account No'] || '—'}
           </div>
         </div>
+
         <div>
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Account Type:
           </label>
+
           <div className="font-bold text-slate-900 text-sm md:text-base uppercase">
             {data['Account Type'] || '—'}
           </div>
         </div>
+
         <div>
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Account Name:
           </label>
+
           <div className="font-bold text-slate-900 text-sm md:text-base uppercase">
             {data['Account Name'] || '—'}
           </div>
         </div>
+
         <div>
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Opening Balance:
           </label>
+
           <div className="font-bold text-[#0d6b41] text-sm md:text-base">
             {'৳' + formatNumber(data['Opening Balance'])}
           </div>
         </div>
+
         <div>
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Closing Balance:
           </label>
+
           <div className="font-bold text-[#0d6b41] text-sm md:text-base">
             {'৳' + formatNumber(data['Closing Balance'])}
           </div>
         </div>
+
         <div>
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Statement Period:
           </label>
+
           <div className="font-bold text-slate-900 text-sm md:text-base">
             {data['Statement Period'] || '—'}
           </div>
         </div>
+
         <div className="md:col-span-2">
           <label className="block text-slate-500 font-semibold text-[11px] uppercase tracking-wide mb-1">
             Certificate ID:
           </label>
+
           <div className="font-bold text-slate-900 text-sm md:text-base">
             {data['Certificate ID'] || '—'}
           </div>
@@ -330,10 +406,125 @@ function StatementLayout({ data }) {
         <span className="font-bold text-slate-500 uppercase tracking-wide text-[11px]">
           Statement Generated Date:
         </span>{' '}
+
         <span className="font-semibold text-slate-900">
-          {data['Statement Generated Date'] || '—'}
+          <LiveGeneratedDate />
         </span>
       </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Layout C — Flag 3: PDF-style statement layout
+   ============================================================ */
+function Flag3Layout({ data }) {
+  const primary = {
+    accountNo: data['Account No'] || '—',
+    accountType: data['Account Type'] || '—',
+    accountName: data['Account Name'] || '—',
+    openingBalance: data['Opening Balance'] ?? '',
+    closingBalance: data['Closing Balance'] ?? '',
+    statementPeriod: data['Statement Period'] || '—',
+    certificateId: data['Certificate ID'] || '—',
+  };
+
+  const secondary = {
+    accountNo: data['Account No 2'] || primary.accountNo,
+    accountType: data['Account Type 2'] || primary.accountType,
+    accountName: data['Account Name 2'] || primary.accountName,
+    openingBalance: data['Opening Balance 2'] ?? primary.openingBalance,
+    closingBalance: data['Closing Balance 2'] ?? primary.closingBalance,
+    statementPeriod: data['Statement Period 2'] || '—',
+    certificateId: data['Certificate ID 2'] || primary.certificateId,
+  };
+
+  const money = (value) => {
+    if (value === '' || value === null || value === undefined) return '—';
+
+    const cleaned = String(value).replace(/[৳,: ]/g, '');
+    const number = Number(cleaned);
+
+    if (Number.isNaN(number)) return String(value);
+
+    return (
+      '৳' +
+      number.toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
+  };
+
+  const fields = [
+    ['ACCOUNT NO:', 'accountNo'],
+    ['ACCOUNT TYPE:', 'accountType'],
+    ['ACCOUNT NAME:', 'accountName'],
+    ['OPENING BALANCE:', 'openingBalance'],
+    ['CLOSING BALANCE:', 'closingBalance'],
+    ['STATEMENT PERIOD:', 'statementPeriod'],
+    ['CERTIFICATE ID:', 'certificateId'],
+  ];
+
+  const SummaryFields = ({ record, compact = false }) => (
+    <div className={`statement-fields ${compact ? 'secondary-fields' : ''}`}>
+      {fields.map(([label, key]) => {
+        const isBalance =
+          key === 'openingBalance' || key === 'closingBalance';
+
+        return (
+          <div className="statement-field" key={key}>
+            <div className="statement-label">{label}</div>
+
+            <div
+              className={`statement-value ${
+                isBalance ? 'statement-balance' : ''
+              }`}
+            >
+              {isBalance ? money(record[key]) : record[key]}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div className="pdf-document">
+      
+
+      <section className="statement-hero">
+        <div className="valid-statement">
+          <span aria-hidden="true">♢</span> Valid Statement
+        </div>
+
+        <p className="statement-description">
+          The following details are confirmed and digitally generated by
+          Pubali Bank PLC.
+        </p>
+
+        <div className="statement-card">
+          <h2 className="statement-title">Statement Summary</h2>
+
+          <SummaryFields record={primary} />
+
+          <div className="statement-generated">
+            <strong>STATEMENT GENERATED DATE:</strong>{' '}
+            <LiveGeneratedDate />
+          </div>
+        </div>
+      </section>
+
+      <section className="secondary-summary">
+        <h2 className="secondary-title">STATEMENT SUMMARY</h2>
+
+        <SummaryFields record={secondary} compact />
+
+        <div className="secondary-generated">
+          <strong>STATEMENT GENERATED DATE:</strong>{' '}
+          <LiveGeneratedDate />
+        </div>
+      </section>
     </div>
   );
 }
@@ -345,12 +536,19 @@ function App() {
   const [error, setError] = useState('');
   const [expired, setExpired] = useState(false);
   const [overlayMsg, setOverlayMsg] = useState(null);
+
   const timerRef = useRef(null);
   const visitTimerRef = useRef(null);
 
-  const resultVisible = Boolean(data) && !loading && !error && !expired;
-  const { sessionId, blurred, setBlurred } = useSessionGuard(resultVisible);
+  const resultVisible =
+    Boolean(data) && !loading && !error && !expired;
 
+  const { blurred, setBlurred } =
+    useSessionGuard(resultVisible);
+
+  const isPdfMode = data?.__type === '3';
+
+  /* -------------------- Auto-hide after 30 seconds -------------------- */
   useEffect(() => {
     if (!resultVisible) return;
     if (blurred) return;
@@ -365,43 +563,43 @@ function App() {
   }, [resultVisible, blurred]);
 
   useEffect(() => {
-    return () => clearTimeout(visitTimerRef.current);
+    return () => {
+      clearTimeout(visitTimerRef.current);
+      clearTimeout(timerRef.current);
+    };
   }, []);
 
+  /* -------------------- Read Certificate ID from QR URL -------------------- */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
     const idFromUrl =
-      params.get('id') || params.get('certificate') || params.get('cert');
+      params.get('id') ||
+      params.get('certificate') ||
+      params.get('cert');
+
     if (idFromUrl) {
       loadCertificate(idFromUrl);
     }
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* -------------------- Load certificate without scan limit -------------------- */
   const loadCertificate = async (id) => {
     setError('');
     setData(null);
     setExpired(false);
     setOverlayMsg(null);
 
-    const used = getVisitCount(id);
-    if (used >= MAX_VISITS) {
-      setOverlayMsg({
-        title: '503 — Service Temporarily Unavailable',
-        message:
-          'This certificate has reached its maximum verification limit. Please contact support if you need further assistance.',
-      });
-      setExpired(true);
-      return;
-    }
-
     setLoading(true);
+
     try {
       const row = await fetchCertificateById(id);
+
       if (!row) {
         setError(`No record found for Certificate ID: ${id}`);
       } else {
-        incrementVisitCount(id);
         setData(row);
       }
     } catch (err) {
@@ -414,8 +612,8 @@ function App() {
 
   const handleVisitWebsite = (e) => {
     e.preventDefault();
-    clearTimeout(visitTimerRef.current);
 
+    clearTimeout(visitTimerRef.current);
     setBlurred(true);
 
     visitTimerRef.current = setTimeout(() => {
@@ -427,152 +625,226 @@ function App() {
     }, VISIT_DELAY_MS);
   };
 
+  const badgeLabel =
+    data?.__type === '3' || data?.__type === '2'
+      ? 'Valid Statement'
+      : 'Valid Certificate';
+
   return (
-    <div className="min-h-screen flex flex-col justify-between text-slate-800 antialiased bg-[#f1f6f3] select-none">
-      {/* ============ Header ============ */}
-      <header className="bg-[#0d6b41] text-white px-4 md:px-8 py-3 shadow-md">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <Link
-            to="/"
-            className="flex items-center gap-3 text-base md:text-lg font-semibold"
-          >
-            <i className="fa-solid fa-file-circle-check text-xl text-emerald-200"></i>
-            <span>Document Verifier</span>
-          </Link>
-
-          <div className="flex items-center gap-2">
-            {/* <Link
-              to="/qr"
-              className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
+    <div
+      className={`min-h-screen flex flex-col justify-between text-slate-800 antialiased ${
+        isPdfMode ? 'bg-white' : 'bg-[#f1f6f3] select-none'
+      }`}
+    >
+      {!isPdfMode && (
+        <header className="bg-[#0d6b41] text-white px-4 md:px-8 py-3 shadow-md">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <Link
+              to="/"
+              className="flex items-center gap-3 text-base md:text-lg font-semibold"
             >
-              <i className="fa-solid fa-qrcode text-[11px]"></i>
-              <span>Generate QR</span>
-            </Link> */}
+              <i className="fa-solid fa-file-circle-check text-xl text-emerald-200"></i>
+              <span>Document Verifier</span>
+            </Link>
 
-            <a
-              href={WEBSITE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handleVisitWebsite}
-              className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
-            >
-              <span>Visit Website</span>
-              <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-            </a>
+            <div className="flex items-center gap-2">
+              <a
+                href={WEBSITE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleVisitWebsite}
+                className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 md:px-5 py-1.5 rounded-full text-xs md:text-sm font-medium transition flex items-center gap-2"
+              >
+                <span>Visit Website</span>
+                <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+              </a>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      {/* ============ Main ============ */}
-      <main className="flex-grow flex flex-col items-center px-4 py-8 md:py-12">
-        <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
-          {loading && (
-            <div className="text-center text-slate-500 text-sm py-6">
-              <i className="fa-solid fa-spinner fa-spin mr-2"></i>
-              Fetching record...
-            </div>
-          )}
-
-          {error && !loading && (
-            <div className="w-full max-w-lg text-center bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-6">
-              <i className="fa-solid fa-circle-exclamation mr-2"></i>
-              {error}
-            </div>
-          )}
-
-          {resultVisible && (
-            <>
-              <div className="text-center mb-4">
-                <div className="inline-flex items-center gap-2 px-6 py-2 bg-[#d1f2e2] border border-[#a3e2c3] text-[#0b6b40] font-semibold text-sm rounded-full mb-3">
-                  <i className="fa-solid fa-check text-base"></i>
-                  <span>Valid Statement</span>
-                </div>
-                <p className="text-xs md:text-sm text-slate-600 text-center">
-                  The following details are confirmed and digitally generated.
-                </p>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Session {sessionId} • auto-hides in 20s
-                </p>
+      <main
+        className={
+          isPdfMode
+            ? 'flex-grow p-0'
+            : 'flex-grow flex flex-col items-center px-4 py-8 md:py-12'
+        }
+      >
+        {isPdfMode ? (
+          <div className="w-full mx-auto">
+            {loading && (
+              <div className="text-center text-slate-500 text-sm py-6">
+                <i className="fa-solid fa-spinner fa-spin mr-2"></i>
+                Fetching record...
               </div>
+            )}
 
+            {error && !loading && (
+              <div className="w-full text-center bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+                <i className="fa-solid fa-circle-exclamation mr-2"></i>
+                {error}
+              </div>
+            )}
+
+            {resultVisible && (
               <div
                 className={`relative w-full transition-all duration-200 ${
-                  blurred ? 'blur-xl pointer-events-none select-none' : ''
+                  blurred
+                    ? 'blur-xl pointer-events-none select-none'
+                    : ''
                 }`}
               >
-                {data.__type === 'B' ? (
-                  <StatementLayout data={data} />
-                ) : (
-                  <CertificateLayout data={data} />
-                )}
+                <Flag3Layout data={data} />
 
                 {blurred && (
-                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 rounded-xl">
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 rounded-lg">
                     <div className="text-white text-center px-4">
                       <i className="fa-solid fa-eye-slash text-3xl mb-2"></i>
-                      <p className="text-sm font-semibold">Content hidden for security</p>
-                      <p className="text-xs opacity-70 mt-1">Return to this tab to view</p>
+
+                      <p className="text-sm font-semibold">
+                        Content hidden for security
+                      </p>
+
+                      <p className="text-xs opacity-70 mt-1">
+                        Return to this tab to view
+                      </p>
                     </div>
                   </div>
                 )}
               </div>
-            </>
-          )}
+            )}
 
-          {!data && !loading && !error && !expired && (
-            <div className="text-center text-slate-500 text-sm py-10">
-              <i className="fa-solid fa-file-circle-question text-4xl mb-3 block text-slate-400"></i>
-              Scan a QR code or enter a Certificate ID above to verify.
-            </div>
-          )}
-        </div>
+            {!data && !loading && !error && !expired && (
+              <div className="text-center text-slate-500 text-sm py-10">
+                <i className="fa-solid fa-file-circle-question text-4xl mb-3 block text-slate-400"></i>
+                Scan a QR code or enter a Certificate ID above to verify.
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
+            {loading && (
+              <div className="text-center text-slate-500 text-sm py-6">
+                <i className="fa-solid fa-spinner fa-spin mr-2"></i>
+                Fetching record...
+              </div>
+            )}
+
+            {error && !loading && (
+              <div className="w-full max-w-lg text-center bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-6">
+                <i className="fa-solid fa-circle-exclamation mr-2"></i>
+                {error}
+              </div>
+            )}
+
+            {resultVisible && (
+              <>
+                <div className="text-center mb-4">
+                  <div className="inline-flex items-center gap-2 px-6 py-2 bg-[#d1f2e2] border border-[#a3e2c3] text-[#0b6b40] font-semibold text-sm rounded-full mb-3">
+                    <i className="fa-solid fa-check text-base"></i>
+                    <span>{badgeLabel}</span>
+                  </div>
+
+                  <p className="text-xs md:text-sm text-slate-600 text-center">
+                    The following details are confirmed and digitally
+                    generated by Pubali Bank PLC.
+                  </p>
+
+                  
+                </div>
+
+                <div
+                  className={`relative w-full transition-all duration-200 ${
+                    blurred
+                      ? 'blur-xl pointer-events-none select-none'
+                      : ''
+                  }`}
+                >
+                  {data.__type === '2' ? (
+                    <StatementLayout data={data} />
+                  ) : (
+                    <CertificateLayout data={data} />
+                  )}
+
+                  {blurred && (
+                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/40 rounded-xl">
+                      <div className="text-white text-center px-4">
+                        <i className="fa-solid fa-eye-slash text-3xl mb-2"></i>
+
+                        <p className="text-sm font-semibold">
+                          Content hidden for security
+                        </p>
+
+                        <p className="text-xs opacity-70 mt-1">
+                          Return to this tab to view
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {!data && !loading && !error && !expired && (
+              <div className="text-center text-slate-500 text-sm py-10">
+                <i className="fa-solid fa-file-circle-question text-4xl mb-3 block text-slate-400"></i>
+                Scan a QR code or enter a Certificate ID above to verify.
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
-      {/* ============ Footer ============ */}
-      <footer className="bg-white border-t border-slate-200 py-5 px-4 md:px-10 text-[11px] md:text-xs text-slate-600">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <i className="fa-solid fa-phone text-emerald-700 w-4 text-center"></i>
-              <span>
-                <strong>Helpline:</strong> {footerInfo.helpline}
-              </span>
+      {!isPdfMode && (
+        <footer className="bg-white border-t border-slate-200 py-5 px-4 md:px-10 text-[11px] md:text-xs text-slate-600">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-phone text-emerald-700 w-4 text-center"></i>
+                <span>
+                  <strong>Helpline:</strong> {footerInfo.helpline}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-tty text-emerald-700 w-4 text-center"></i>
+                <span>
+                  <strong>PABX Number:</strong> {footerInfo.pabx}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-fax text-emerald-700 w-4 text-center"></i>
+                <span>
+                  <strong>Fax:</strong> {footerInfo.fax}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <i className="fa-solid fa-tty text-emerald-700 w-4 text-center"></i>
-              <span>
-                <strong>PABX Number:</strong> {footerInfo.pabx}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <i className="fa-solid fa-fax text-emerald-700 w-4 text-center"></i>
-              <span>
-                <strong>Fax:</strong> {footerInfo.fax}
-              </span>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-envelope text-emerald-700 w-4 text-center"></i>
+                <span>
+                  <strong>Mail:</strong>{' '}
+                  <a
+                    href={`mailto:${footerInfo.email}`}
+                    className="hover:underline text-slate-700"
+                  >
+                    {footerInfo.email}
+                  </a>
+                </span>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <i className="fa-solid fa-location-dot text-emerald-700 w-4 text-center mt-0.5"></i>
+                <span>
+                  <strong>Address:</strong> {footerInfo.address}
+                </span>
+              </div>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <i className="fa-solid fa-envelope text-emerald-700 w-4 text-center"></i>
-              <span>
-                <strong>Mail:</strong>{' '}
-                <a
-                  href={`mailto:${footerInfo.email}`}
-                  className="hover:underline text-slate-700"
-                >
-                  {footerInfo.email}
-                </a>
-              </span>
-            </div>
-            <div className="flex items-start gap-2">
-              <i className="fa-solid fa-location-dot text-emerald-700 w-4 text-center mt-0.5"></i>
-              <span>
-                <strong>Address:</strong> {footerInfo.address}
-              </span>
-            </div>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {expired && (
         <ServerDownOverlay
